@@ -7,10 +7,13 @@ import * as mkdirp from 'mkdirp';
 import * as mime from 'mime';
 import * as graceful from 'graceful-fs';
 
-
+import meta = require('./meta');
 import slugify = require('./slugify');
 
+import { promisify } from './promisify';
+
 declare function slugify(value: string): string;
+
 // The next line calls a function in a module that has not been updated to TS yet
 // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
 graceful.gracefulify(fs);
@@ -39,7 +42,10 @@ const file: FileFunctions = {
             throw new Error('[[error:invalid-path]]');
         }
         winston.verbose(`Saving file ${filename} to : ${uploadPath}`);
-        await mkdirp(path.dirname(uploadPath));
+        const dirName: string = path.dirname(uploadPath);
+        // The next line calls a function in a module that has not been updated to TS yet
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        await mkdirp(dirName);
         await fs.copyFile(tempPath, uploadPath);
         return {
             url: `/assets/uploads/${folder ? `${folder}/` : ''}${filename}`,
@@ -48,27 +54,42 @@ const file: FileFunctions = {
     },
     base64ToLocal: async function (imageData, uploadPath) {
         const buffer = Buffer.from(imageData.slice(imageData.indexOf('base64') + 7), 'base64');
-        uploadPath = path.join(nconf.get('upload_path'), uploadPath);
-    
+        uploadPath = path.join(String(nconf.get('upload_path')), String(uploadPath));
         await fs.writeFile(uploadPath, buffer, {
             encoding: 'base64',
         });
         return uploadPath;
-    }, 
+    },
     appendToFileName: function (filename, string) {
         const dotIndex = filename.lastIndexOf('.');
         if (dotIndex === -1) {
             return filename + string;
         }
         return filename.substring(0, dotIndex) + string + filename.substring(dotIndex);
-    },
+    }, /*
     allowedExtensions: function () {
-        const meta = require('./meta');
-        let allowedExtensions = (meta.config.allowedFileExtensions || '').trim();
-        if (!allowedExtensions) {
+        const allowedFileExtensions = meta.config?.allowedFileExtensions?.trim() || '';
+        if (!allowedFileExtensions) {
             return [];
         }
-        allowedExtensions = allowedExtensions.split(',');
+        const extensions = allowedFileExtensions.split(',')
+            .map(extension => extension.trim())
+            .filter(Boolean)
+            .map(extension => !extension.startsWith('.') ? `.${extension}` : extension.toLowerCase());
+        if (!extensions.includes('.jpg') && extensions.includes('.jpeg')) {
+            extensions.push('.jpg');
+        }
+        return extensions;
+    }, */
+    allowedExtensions: function () {
+        // The next line calls a function in a module that has not been updated to TS yet
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+        const allowedFileExtensions: string = (meta.config.allowedFileExtensions as string).trim();
+        /* let allowedExtensions = (meta.config.allowedFileExtensions || '').trim(); */
+        if (!allowedFileExtensions) {
+            return [];
+        }
+        let allowedExtensions = allowedFileExtensions.split(',');
         allowedExtensions = allowedExtensions.filter(Boolean).map((extension) => {
             extension = extension.trim();
             if (!extension.startsWith('.')) {
@@ -76,17 +97,17 @@ const file: FileFunctions = {
             }
             return extension.toLowerCase();
         });
-    
         if (allowedExtensions.includes('.jpg') && !allowedExtensions.includes('.jpeg')) {
             allowedExtensions.push('.jpeg');
         }
-    
         return allowedExtensions;
     },
-    exists: async function (filePath) {
+    exists: async function (filePath: string): Promise<boolean> {
         try {
             await fs.stat(filePath);
         } catch (err) {
+            // The next line calls a function in a module that has not been updated to TS yet
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
             if (err.code === 'ENOENT') {
                 return false;
             }
@@ -96,7 +117,6 @@ const file: FileFunctions = {
     },
     /*
     file.existsSync = function (filePath) {
-        
         try {
             fs.statSync(filePath);
         } catch (err) {
@@ -105,7 +125,6 @@ const file: FileFunctions = {
             }
             throw err;
         }
-    
         return true;
     };
     */
@@ -116,11 +135,12 @@ const file: FileFunctions = {
         try {
             await fs.unlink(filePath);
         } catch (err) {
+            // The next line calls a function in a module that has not been updated to TS yet
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
             if (err.code === 'ENOENT') {
                 winston.verbose(`[file] Attempted to delete non-existent file: ${filePath}`);
                 return;
             }
-    
             winston.warn(err);
         }
     },
@@ -128,18 +148,16 @@ const file: FileFunctions = {
         if (relative && process.platform !== 'win32') {
             filePath = path.relative(path.dirname(destPath), filePath);
         }
-    
         if (process.platform === 'win32') {
             await fs.link(filePath, destPath);
         } else {
             await fs.symlink(filePath, destPath, 'file');
         }
-    },    
+    },
     linkDirs: async function linkDirs(sourceDir, destDir, relative) {
         if (relative && process.platform !== 'win32') {
             sourceDir = path.relative(path.dirname(destDir), sourceDir);
         }
-    
         const type = (process.platform === 'win32') ? 'junction' : 'dir';
         await fs.symlink(sourceDir, destDir, type);
     },
@@ -149,7 +167,7 @@ const file: FileFunctions = {
             extension = `.${mime.extension(type)}`;
         }
         return extension;
-    }
+    },
     /*
     file.walk = async function (dir) {
         const subdirs = await fs.readdir(dir);
@@ -161,6 +179,6 @@ const file: FileFunctions = {
     };
     */
 };
-
-
-require('./promisify')(file);
+// The next line calls a function in a module that has not been updated to TS yet
+// eslint-disable-next-line @typescript-eslint/no-unsafe-member-access, @typescript-eslint/no-unsafe-call
+promisify(file);
